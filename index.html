@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>D'Alexis Online Courses</title>
+
+  <!-- Font Awesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+
+  <!-- Vue 2 CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+
+  <style>
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background:#000; color:#fff; padding:20px; }
+    .container { max-width:1200px; margin:0 auto; display:grid; grid-template-columns: 1fr 360px; gap:24px; }
+    header { display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; }
+    header .logo { display:flex; align-items:center; gap:10px; color:#e252ff; font-weight:bold; }
+    header .logo img { width:40px; border-radius:6px; }
+
+    /* Search */
+    .search-bar { display:flex; align-items:center; gap:8px; }
+    .search-bar input { padding:10px 12px; border-radius:8px; border:1px solid #333; width:360px; background:#111; color:#fff; }
+
+    /* Lessons list */
+    .lessons { display:flex; flex-direction:column; gap:12px; }
+    .lesson-card { display:flex; justify-content:space-between; align-items:center; padding:12px; border-radius:10px; background: rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.03); }
+    .lesson-left { display:flex; gap:12px; align-items:center; }
+    .lesson-left i { font-size:34px; width:48px; text-align:center; color:#00ffff; }
+    .lesson-meta h4 { margin-bottom:6px; }
+    .badges { display:flex; gap:8px; align-items:center; }
+    .badge { background: rgba(255,255,255,0.03); padding:6px 8px; border-radius:8px; font-size:0.95rem; }
+
+    .lesson-actions { display:flex; gap:8px; align-items:center; }
+    .lesson-actions button { padding:8px 12px; border-radius:8px; border:0; cursor:pointer; background:#00ffff; color:#000; font-weight:600; }
+    .lesson-actions button[disabled] { opacity:0.5; cursor:not-allowed; }
+
+    /* Cart */
+    aside.cart { background: rgba(255,255,255,0.03); padding:16px; border-radius:10px; height:fit-content; position:sticky; top:20px; }
+    aside h3 { margin-bottom:12px; }
+    .cart-item { display:flex; justify-content:space-between; margin-bottom:10px; }
+    .cart-tot { margin-top:12px; font-weight:700; }
+    .checkout-form { margin-top:12px; display:flex; flex-direction:column; gap:8px; }
+    .checkout-form input { padding:8px 10px; border-radius:8px; border:1px solid #333; background:#111; color:#fff; }
+    .checkout-btn { padding:10px; border-radius:10px; border:0; background:#e252ff; color:#fff; font-weight:700; cursor:pointer; }
+    .checkout-btn[disabled] { opacity:0.45; cursor:not-allowed; }
+
+    .message { margin-top:12px; padding:10px; border-radius:8px; background:#062; color:#cfefd0; }
+    .small { font-size:0.85rem; color:#bbb; }
+
+    @media (max-width: 900px) {
+      .container { grid-template-columns: 1fr; }
+      .search-bar input { width:100%; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="logo">
+        <img src="images/DIVINE CLIQ LOGO MODIFIED.png" alt="logo" />
+        <div>
+          <div>D'Alexis Online Courses</div>
+          <div class="small">D'Alexis Online Courses</div>
+        </div>
+      </div>
+
+      <div class="search-bar">
+        <input
+          type="text"
+          v-model="searchQuery"
+          @input="onSearchInput"
+          placeholder="Search lessons... (search-as-you-type)"
+          aria-label="Search lessons"
+        />
+        <div class="small" v-if="searching">Searching...</div>
+      </div>
+    </header>
+
+    <div class="container">
+      <!-- Lessons column -->
+      <section class="lessons">
+        <h2>Available Lessons</h2>
+
+        <!-- v-for used to render lessons -->
+        <div v-if="displayedLessons.length === 0" class="small">No lessons found.</div>
+
+        <div v-for="lesson in displayedLessons" :key="lesson.id" class="lesson-card">
+          <div class="lesson-left">
+            <i :class="lesson.icon"></i>
+            <div class="lesson-meta">
+              <h4>{{ lesson.title }}</h4>
+              <div class="small">Subject: {{ lesson.subject }} • Location: {{ lesson.location }}</div>
+            </div>
+          </div>
+
+          <div class="lesson-actions">
+            <div class="badges">
+              <div class="badge">${{ lesson.price }}</div>
+              <div class="badge">Spaces: {{ lesson.spaces }}</div>
+            </div>
+            <button :disabled="lesson.spaces <= 0" @click="addToCart(lesson)">
+              Add
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Cart column -->
+      <aside class="cart">
+        <h3>Shopping Cart</h3>
+
+        <div v-if="cart.length === 0" class="small">Cart is empty.</div>
+
+        <div v-for="item in cart" :key="item.id" class="cart-item">
+          <div>
+            <div><strong>{{ item.title }}</strong></div>
+            <div class="small">Qty: 
+              <input type="number" v-model.number="item.qty" @change="updateQty(item)" min="1" style="width:70px; background:#111; color:#fff; border:1px solid #333; padding:4px 6px; border-radius:6px;">
+            </div>
+          </div>
+          <div>${{ item.qty * item.price }}</div>
+        </div>
+
+        <div class="cart-tot">Total: ${{ total }}</div>
+
+        <div class="checkout-form">
+          <input type="text" v-model="customerName" placeholder="Name (letters only)" aria-label="name">
+          <input type="text" v-model="customerPhone" placeholder="Phone (numbers only)" aria-label="phone">
+          <button
+            class="checkout-btn"
+            :disabled="!canCheckout"
+            @click="checkout"
+            title="Checkout"
+          >
+            Checkout
+          </button>
+
+          <!-- validation hints -->
+          <div class="small" v-if="customerName && !nameValid">Name must contain letters and spaces only.</div>
+          <div class="small" v-if="customerPhone && !phoneValid">Phone must contain numbers only.</div>
+
+          <div class="message" v-if="orderMessage">{{ orderMessage }}</div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    // Partial Vue 2 app
+    new Vue({
+      el: '#app',
+      data: function() {
+        return {
+          // initial data (10 lessons, spaces set to 5)
+          lessons: [
+            { id: 'L001', title: 'Intro to Vue', subject: 'Vue.js', location: 'Port Harcourt', price: 49, spaces: 5, icon: 'fa-brands fa-vuejs' },
+            { id: 'L002', title: 'Advanced JavaScript', subject: 'JavaScript', location: 'Lagos', price: 69, spaces: 5, icon: 'fa-brands fa-js' },
+            { id: 'L003', title: 'HTML & Accessibility', subject: 'HTML', location: 'Abuja', price: 39, spaces: 5, icon: 'fa-solid fa-code' },
+            { id: 'L004', title: 'CSS Layouts', subject: 'CSS', location: 'Benin', price: 45, spaces: 5, icon: 'fa-brands fa-css3-alt' },
+            { id: 'L005', title: 'Node & Express', subject: 'Node.js', location: 'Owerri', price: 75, spaces: 5, icon: 'fa-brands fa-node-js' },
+            { id: 'L006', title: 'MongoDB Basics', subject: 'Databases', location: 'Uyo', price: 55, spaces: 5, icon: 'fa-solid fa-database' },
+            { id: 'L007', title: 'React Concepts', subject: 'React', location: 'Port Harcourt', price: 60, spaces: 5, icon: 'fa-brands fa-react' },
+            { id: 'L008', title: 'Testing JavaScript', subject: 'Testing', location: 'Lagos', price: 50, spaces: 5, icon: 'fa-solid fa-vial' },
+            { id: 'L009', title: 'UX Fundamentals', subject: 'UX', location: 'Abuja', price: 42, spaces: 5, icon: 'fa-solid fa-user-pen' },
+            { id: 'L010', title: 'Deployment & CI', subject: 'DevOps', location: 'Benin', price: 80, spaces: 5, icon: 'fa-solid fa-server' }
+          ],
+          // displayedLessons: what the UI shows (changes with search)
+          displayedLessons: [],
+          cart: [],
+          customerName: '',
+          customerPhone: '',
+          orderMessage: '',
+          searchQuery: '',
+          searching: false,
+          searchTimer: null
+        };
+      },
+      created: function() {
+        // initial display
+        this.displayedLessons = this.lessons.slice();
+      },
+      computed: {
+        total: function() {
+          return this.cart.reduce(function(sum, it) {
+            return sum + (it.qty * it.price);
+          }, 0);
+        },
+        nameValid: function() {
+          return /^[A-Za-z\s]+$/.test(this.customerName.trim());
+        },
+        phoneValid: function() {
+          return /^\d+$/.test(this.customerPhone.trim());
+        },
+        canCheckout: function() {
+          return this.cart.length > 0 && this.nameValid && this.phoneValid;
+        }
+      },
+      methods: {
+        addToCart: function(lesson) {
+          if (lesson.spaces <= 0) {
+            alert('No spaces left for this lesson.');
+            return;
+          }
+
+          var existing = this.cart.find(function(i) { return i.id === lesson.id; });
+          if (existing) {
+            existing.qty += 1;
+          } else {
+            this.cart.push({ id: lesson.id, title: lesson.title, price: lesson.price, qty: 1 });
+          }
+
+          // reduce availability
+          lesson.spaces -= 1;
+        },
+        updateQty: function(item) {
+          if (item.qty < 1) item.qty = 1;
+          // No automatic inventory re-sync in this partial example
+        },
+        checkout: function() {
+          if (!this.canCheckout) return;
+
+          // Build order payload (could POST to backend). For this partial app we just confirm.
+          var order = {
+            customer: { name: this.customerName.trim(), phone: this.customerPhone.trim() },
+            items: this.cart.map(function(i) { return { id: i.id, qty: i.qty }; }),
+            total: this.total,
+            date: new Date().toISOString()
+          };
+
+          // Simulate sending order to backend (optional). Here we just show a success message.
+          this.orderMessage = 'Order submitted for ' + order.customer.name + '. Total: $' + order.total + '. Thank you!';
+          
+          // Clear cart and inputs (spaces remain reduced because we reserved them when adding)
+          this.cart = [];
+          this.customerName = '';
+          this.customerPhone = '';
+
+          // Clear message after some time (optional)
+          var vm = this;
+          setTimeout(function() { vm.orderMessage = ''; }, 7000);
+        },
+
+        // search-as-you-type with debounce; tries backend fetch first and falls back to client-side filtering
+        onSearchInput: function() {
+          var vm = this;
+          vm.searching = true;
+          if (vm.searchTimer) clearTimeout(vm.searchTimer);
+          vm.searchTimer = setTimeout(function() {
+            vm.performSearch(vm.searchQuery.trim());
+          }, 300); // 300ms debounce
+        },
+
+        performSearch: function(q) {
+          var vm = this;
+          if (!q) {
+            vm.displayedLessons = vm.lessons.slice();
+            vm.searching = false;
+            return;
+          }
+
+          // Try backend first
+          var url = '/search?q=' + encodeURIComponent(q);
+          fetch(url, { method: 'GET' })
+            .then(function(res) {
+              if (!res.ok) throw new Error('Network error');
+              return res.json();
+            })
+            .then(function(data) {
+              // Expect data to be an array of lessons (matching the front-end shape)
+              if (Array.isArray(data)) {
+                // Ensure lessons returned have 'spaces' numeric property etc.
+                vm.displayedLessons = data.map(function(d) {
+                  // Defensive: ensure keys exist
+                  return {
+                    id: d.id || d._id || d.title || Math.random().toString(36).slice(2,8),
+                    title: d.title || d.subject || 'Untitled',
+                    subject: d.subject || '',
+                    location: d.location || '',
+                    price: typeof d.price === 'number' ? d.price : Number(d.price) || 0,
+                    spaces: typeof d.spaces === 'number' ? d.spaces : Number(d.spaces) || 0,
+                    icon: d.icon || 'fa-solid fa-book'
+                  };
+                });
+              } else {
+                // fallback to client filter if server returns unexpected payload
+                vm.clientFilter(q);
+              }
+            })
+            .catch(function() {
+              // network/server issue — fallback to client-side filtering
+              vm.clientFilter(q);
+            })
+            .finally(function() {
+              vm.searching = false;
+            });
+        },
+
+        clientFilter: function(q) {
+          var vm = this;
+          var low = q.toLowerCase();
+          vm.displayedLessons = vm.lessons.filter(function(l) {
+            return (l.title && l.title.toLowerCase().includes(low))
+              || (l.subject && l.subject.toLowerCase().includes(low))
+              || (l.location && l.location.toLowerCase().includes(low))
+              || (String(l.price).toLowerCase().includes(low))
+              || (String(l.spaces).toLowerCase().includes(low));
+          });
+        }
+      }
+    });
+  </script>
+</body>
+</html>
